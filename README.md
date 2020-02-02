@@ -13,6 +13,9 @@ Results are compared with OpenCV CPU version and execution times are compared wi
 Here are the current benchmark results:
 
 Time to run naive kernel : 4.68009758 ms
+
 Time to run shared memory kernel : 3.240493774 ms
+
 Time to run shared memory 64 Bit kernel : 1.736196399 ms
+
 openCVMatcher ran in  3.11371608 ms
