@@ -147,6 +147,99 @@ __global__ void BinaryMatcherWithSharedMem64Bit(  const uint64_t* __restrict__ f
             {
                 distance = 0;
 
+                // if(threadId == 0)
+                // {
+                //     printf("SH j %lu \n", j);
+                //     printf("SH 0 database part %lu \n", databaseDescriptorsShared[j * 8]);
+                //     printf("SH 1 database part %lu \n", databaseDescriptorsShared[j * 8 + 1]);
+                //     printf("SH 2 database part %lu \n", databaseDescriptorsShared[j * 8 + 2]);
+                //     printf("SH 3 database part %lu \n", databaseDescriptorsShared[j * 8 + 3]);
+                //     printf("SH 4 database part %lu \n", databaseDescriptorsShared[j * 8 + 4]);
+                //     printf("SH 5 database part %lu \n", databaseDescriptorsShared[j * 8 + 5]);
+                //     printf("SH 6 database part %lu \n", databaseDescriptorsShared[j * 8 + 6]);
+                //     printf("SH 7 database part %lu \n", databaseDescriptorsShared[j * 8 + 7]);
+                // }
+
+                distance =  __popcll(frameDescriptors[threadId * 8]      ^ databaseDescriptorsShared[j * 8]);
+                distance += __popcll(frameDescriptors[threadId * 8 + 1 ] ^ databaseDescriptorsShared[j * 8 + 1 ]);
+                distance += __popcll(frameDescriptors[threadId * 8 + 2 ] ^ databaseDescriptorsShared[j * 8 + 2 ]);
+                distance += __popcll(frameDescriptors[threadId * 8 + 3 ] ^ databaseDescriptorsShared[j * 8 + 3 ]);
+                distance += __popcll(frameDescriptors[threadId * 8 + 4 ] ^ databaseDescriptorsShared[j * 8 + 4 ]);
+                distance += __popcll(frameDescriptors[threadId * 8 + 5 ] ^ databaseDescriptorsShared[j * 8 + 5 ]);
+                distance += __popcll(frameDescriptors[threadId * 8 + 6 ] ^ databaseDescriptorsShared[j * 8 + 6 ]);
+                distance += __popcll(frameDescriptors[threadId * 8 + 7 ] ^ databaseDescriptorsShared[j * 8 + 7 ]);
+
+                if(distance < minDistance)
+                {
+                    matchId = i + j;
+                    minDistance = distance;
+                }
+            }
+        }
+
+        matches[threadId] = matchId;
+        distances[threadId] = minDistance;
+    }
+}
+
+__global__ void BinaryMatcherWithSharedMem64BitTranspose(  const uint64_t* __restrict__ frameDescriptors, const uint64_t* __restrict__ databaseDescriptors, const size_t numberOfFrameDescriptors,
+                                const size_t numberOfDatabaseDescriptors, uint32_t* __restrict__ matches, uint16_t* __restrict__ distances)
+{   
+    __shared__ uint64_t databaseDescriptorsShared[8 * BLOCK_SIZE];
+    
+    int threadId = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if(threadId < numberOfFrameDescriptors)
+    {
+        uint16_t distance;
+        uint16_t minDistance = 513;
+        uint32_t matchId = 0;
+
+        for(size_t i = 0; i < numberOfDatabaseDescriptors; i += BLOCK_SIZE)
+        {
+            __syncthreads();
+
+            // printf("TR threadIdx.x %i \n", threadIdx.x);
+
+            // if(threadId == 0)
+            // {
+            //     printf("TR index 0 %i \n", i + threadIdx.x + BLOCK_SIZE * 0);
+            //     printf("TR index 1 %i \n", i + threadIdx.x + BLOCK_SIZE * 1);
+            //     printf("TR index 2 %i \n", i + threadIdx.x + BLOCK_SIZE * 2);
+            //     printf("TR index 3 %i \n", i + threadIdx.x + BLOCK_SIZE * 3);
+            //     printf("TR index 4 %i \n", i + threadIdx.x + BLOCK_SIZE * 4);
+            //     printf("TR index 5 %i \n", i + threadIdx.x + BLOCK_SIZE * 5);
+            //     printf("TR index 6 %i \n", i + threadIdx.x + BLOCK_SIZE * 6);
+            //     printf("TR index 7 %i \n", i + threadIdx.x + BLOCK_SIZE * 7); 
+            // }
+            databaseDescriptorsShared[threadIdx.x + BLOCK_SIZE * 0] = databaseDescriptors[i * 8 + threadIdx.x + BLOCK_SIZE * 0];
+            databaseDescriptorsShared[threadIdx.x + BLOCK_SIZE * 1] = databaseDescriptors[i * 8 + threadIdx.x + BLOCK_SIZE * 1];
+            databaseDescriptorsShared[threadIdx.x + BLOCK_SIZE * 2] = databaseDescriptors[i * 8 + threadIdx.x + BLOCK_SIZE * 2];
+            databaseDescriptorsShared[threadIdx.x + BLOCK_SIZE * 3] = databaseDescriptors[i * 8 + threadIdx.x + BLOCK_SIZE * 3];
+            databaseDescriptorsShared[threadIdx.x + BLOCK_SIZE * 4] = databaseDescriptors[i * 8 + threadIdx.x + BLOCK_SIZE * 4];
+            databaseDescriptorsShared[threadIdx.x + BLOCK_SIZE * 5] = databaseDescriptors[i * 8 + threadIdx.x + BLOCK_SIZE * 5];
+            databaseDescriptorsShared[threadIdx.x + BLOCK_SIZE * 6] = databaseDescriptors[i * 8 + threadIdx.x + BLOCK_SIZE * 6];
+            databaseDescriptorsShared[threadIdx.x + BLOCK_SIZE * 7] = databaseDescriptors[i * 8 + threadIdx.x + BLOCK_SIZE * 7];
+
+            __syncthreads();
+
+            for(size_t j = 0; j < BLOCK_SIZE; j++)
+            {
+                distance = 0;
+
+                // if(threadId == 0)
+                // {
+                //     printf("TR j %lu \n", j);
+                //     printf("TR 0 database part %lu \n", databaseDescriptorsShared[j * 8]);
+                //     printf("TR 1 database part %lu \n", databaseDescriptorsShared[j * 8 + 1]);
+                //     printf("TR 2 database part %lu \n", databaseDescriptorsShared[j * 8 + 2]);
+                //     printf("TR 3 database part %lu \n", databaseDescriptorsShared[j * 8 + 3]);
+                //     printf("TR 4 database part %lu \n", databaseDescriptorsShared[j * 8 + 4]);
+                //     printf("TR 5 database part %lu \n", databaseDescriptorsShared[j * 8 + 5]);
+                //     printf("TR 6 database part %lu \n", databaseDescriptorsShared[j * 8 + 6]);
+                //     printf("TR 7 database part %lu \n", databaseDescriptorsShared[j * 8 + 7]);
+                // }
+                
                 distance =  __popcll(frameDescriptors[threadId * 8]      ^ databaseDescriptorsShared[j * 8]);
                 distance += __popcll(frameDescriptors[threadId * 8 + 1 ] ^ databaseDescriptorsShared[j * 8 + 1 ]);
                 distance += __popcll(frameDescriptors[threadId * 8 + 2 ] ^ databaseDescriptorsShared[j * 8 + 2 ]);
@@ -175,7 +268,7 @@ int main()
     const size_t countOfDatabaseDescriptors = BLOCK_SIZE * 500;
     const size_t descriptorSizeUint64 = 8;
     const size_t sizeOfOneDescriptor = descriptorSizeUint64 * sizeof(uint64_t);
-    const size_t numberOfRuns = 100;
+    const size_t numberOfRuns = 10;
 
     uint64_t* frameDescriptors = new uint64_t[countOfFrameDescriptors * sizeOfOneDescriptor];
     uint64_t* databaseDescriptors = new uint64_t[countOfDatabaseDescriptors * sizeOfOneDescriptor];
@@ -184,11 +277,13 @@ int main()
     uint32_t* matchesNaive = new uint32_t[countOfFrameDescriptors];
     uint32_t* matchesSharedMem = new uint32_t[countOfFrameDescriptors];
     uint32_t* matchesSharedMem64Bit = new uint32_t[countOfFrameDescriptors];
+    uint32_t* matchesSharedMem64BitTranspose = new uint32_t[countOfFrameDescriptors];
 
     uint16_t* distancesCPU = new uint16_t[countOfFrameDescriptors];
     uint16_t* distancesNaive = new uint16_t[countOfFrameDescriptors];
     uint16_t* distancesSharedMem = new uint16_t[countOfFrameDescriptors];
     uint16_t* distancesSharedMem64Bit = new uint16_t[countOfFrameDescriptors];
+    uint16_t* distancesSharedMem64BitTranspose = new uint16_t[countOfFrameDescriptors];
 
     // Fill in descriptors
     srand(36);
@@ -293,6 +388,35 @@ int main()
     cudaMemcpy(matchesSharedMem64Bit, deviceMatches, countOfFrameDescriptors * sizeof(uint32_t), cudaMemcpyDeviceToHost);
     cudaMemcpy(distancesSharedMem64Bit, deviceDistances, countOfFrameDescriptors * sizeof(uint16_t), cudaMemcpyDeviceToHost);
 
+    // Run the kernel with shared memory usage and 64-bit computation and transposition
+    cudaMemset(deviceMatches, 0, countOfFrameDescriptors * sizeof(uint32_t));
+    cudaMemset(deviceDistances, 0, countOfFrameDescriptors * sizeof(uint16_t));
+
+    // Warm-up
+    for(size_t i = 0; i < numberOfRuns; i++)
+    {
+        BinaryMatcherWithSharedMem64BitTranspose<<<(countOfFrameDescriptors/BLOCK_SIZE) + 1, BLOCK_SIZE>>> (deviceFrameDescriptors, deviceDatabaseDescriptors, countOfFrameDescriptors, countOfDatabaseDescriptors, deviceMatches, deviceDistances);
+        cudaDeviceSynchronize();
+    }
+
+    cudaEventRecord(start);
+
+    for(size_t i = 0; i < numberOfRuns; i++)
+    {
+        BinaryMatcherWithSharedMem64BitTranspose<<<(countOfFrameDescriptors/BLOCK_SIZE) + 1, BLOCK_SIZE>>> (deviceFrameDescriptors, deviceDatabaseDescriptors, countOfFrameDescriptors, countOfDatabaseDescriptors, deviceMatches, deviceDistances);
+        cudaDeviceSynchronize();
+    }
+
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+
+    std::cout << "Time to run shared memory 64 Bit Transposition kernel : " << std::setprecision(10) << milliseconds / numberOfRuns << " ms" << std::endl;
+
+    cudaMemcpy(matchesSharedMem64BitTranspose, deviceMatches, countOfFrameDescriptors * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    cudaMemcpy(distancesSharedMem64BitTranspose, deviceDistances, countOfFrameDescriptors * sizeof(uint16_t), cudaMemcpyDeviceToHost);
+
     // Compute ground-truth
     for (size_t i = 0; i < countOfFrameDescriptors; i++)
     {
@@ -357,11 +481,21 @@ int main()
                         << " do not match!" << std::endl;
         }
 
-        if(matchesSharedMem64Bit[i] != matchesCPU[i])
+        // if(matchesSharedMem64Bit[i] != matchesCPU[i])
+        // {
+        //     std::cout   << "queryIdx = " << i
+        //                 << " matchesSharedMem64Bit[i] := " << matchesSharedMem64Bit[i] 
+        //                 << " distance := " << distancesSharedMem64Bit[i] 
+        //                 << " and openCVCPUMatches[i].trainIdx = " << matchesCPU[i]
+        //                 << " distance = " << distancesCPU[i]
+        //                 << " do not match!" << std::endl;
+        // }
+
+        if(matchesSharedMem64BitTranspose[i] != matchesCPU[i])
         {
             std::cout   << "queryIdx = " << i
-                        << " matchesSharedMem64Bit[i] := " << matchesSharedMem64Bit[i] 
-                        << " distance := " << distancesSharedMem64Bit[i] 
+                        << " matchesSharedMem64BitTranspose[i] := " << matchesSharedMem64BitTranspose[i] 
+                        << " distance := " << distancesSharedMem64BitTranspose[i] 
                         << " and openCVCPUMatches[i].trainIdx = " << matchesCPU[i]
                         << " distance = " << distancesCPU[i]
                         << " do not match!" << std::endl;
