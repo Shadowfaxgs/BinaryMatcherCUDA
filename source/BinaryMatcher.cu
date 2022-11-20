@@ -150,19 +150,6 @@ __global__ void BinaryMatcherWithSharedMem64Bit(  const uint64_t* __restrict__ q
             {
                 distance = 0;
 
-                // if(threadId == 0)
-                // {
-                //     printf("SH j %lu \n", j);
-                //     printf("SH 0 train part %lu \n", trainDescriptorsShared[j * 8]);
-                //     printf("SH 1 train part %lu \n", trainDescriptorsShared[j * 8 + 1]);
-                //     printf("SH 2 train part %lu \n", trainDescriptorsShared[j * 8 + 2]);
-                //     printf("SH 3 train part %lu \n", trainDescriptorsShared[j * 8 + 3]);
-                //     printf("SH 4 train part %lu \n", trainDescriptorsShared[j * 8 + 4]);
-                //     printf("SH 5 train part %lu \n", trainDescriptorsShared[j * 8 + 5]);
-                //     printf("SH 6 train part %lu \n", trainDescriptorsShared[j * 8 + 6]);
-                //     printf("SH 7 train part %lu \n", trainDescriptorsShared[j * 8 + 7]);
-                // }
-
                 distance =  __popcll(queryDescriptors[threadId * 8]      ^ trainDescriptorsShared[j * 8]);
                 distance += __popcll(queryDescriptors[threadId * 8 + 1 ] ^ trainDescriptorsShared[j * 8 + 1 ]);
                 distance += __popcll(queryDescriptors[threadId * 8 + 2 ] ^ trainDescriptorsShared[j * 8 + 2 ]);
@@ -185,7 +172,7 @@ __global__ void BinaryMatcherWithSharedMem64Bit(  const uint64_t* __restrict__ q
     }
 }
 
-__global__ void BinaryMatcherWithSharedMem64BitTranspose(  const uint64_t* __restrict__ queryDescriptors, const uint64_t* __restrict__ trainDescriptors, const size_t numberOfQueryDescriptors,
+__global__ void BinaryMatcherWithSharedMem64BitOptimized(  const uint64_t* __restrict__ queryDescriptors, const uint64_t* __restrict__ trainDescriptors, const size_t numberOfQueryDescriptors,
                                 const size_t numberOfTrainDescriptors, uint32_t* __restrict__ matches, uint16_t* __restrict__ distances)
 {   
     __shared__ uint64_t trainDescriptorsShared[8 * BLOCK_SIZE];
@@ -202,19 +189,6 @@ __global__ void BinaryMatcherWithSharedMem64BitTranspose(  const uint64_t* __res
         {
             __syncthreads();
 
-            // printf("TR threadIdx.x %i \n", threadIdx.x);
-
-            // if(threadId == 0)
-            // {
-            //     printf("TR index 0 %i \n", i + threadIdx.x + BLOCK_SIZE * 0);
-            //     printf("TR index 1 %i \n", i + threadIdx.x + BLOCK_SIZE * 1);
-            //     printf("TR index 2 %i \n", i + threadIdx.x + BLOCK_SIZE * 2);
-            //     printf("TR index 3 %i \n", i + threadIdx.x + BLOCK_SIZE * 3);
-            //     printf("TR index 4 %i \n", i + threadIdx.x + BLOCK_SIZE * 4);
-            //     printf("TR index 5 %i \n", i + threadIdx.x + BLOCK_SIZE * 5);
-            //     printf("TR index 6 %i \n", i + threadIdx.x + BLOCK_SIZE * 6);
-            //     printf("TR index 7 %i \n", i + threadIdx.x + BLOCK_SIZE * 7); 
-            // }
             trainDescriptorsShared[threadIdx.x + BLOCK_SIZE * 0] = trainDescriptors[i * 8 + threadIdx.x + BLOCK_SIZE * 0];
             trainDescriptorsShared[threadIdx.x + BLOCK_SIZE * 1] = trainDescriptors[i * 8 + threadIdx.x + BLOCK_SIZE * 1];
             trainDescriptorsShared[threadIdx.x + BLOCK_SIZE * 2] = trainDescriptors[i * 8 + threadIdx.x + BLOCK_SIZE * 2];
@@ -230,19 +204,6 @@ __global__ void BinaryMatcherWithSharedMem64BitTranspose(  const uint64_t* __res
             {
                 distance = 0;
 
-                // if(threadId == 0)
-                // {
-                //     printf("TR j %lu \n", j);
-                //     printf("TR 0 train part %lu \n", trainDescriptorsShared[j * 8]);
-                //     printf("TR 1 train part %lu \n", trainDescriptorsShared[j * 8 + 1]);
-                //     printf("TR 2 train part %lu \n", trainDescriptorsShared[j * 8 + 2]);
-                //     printf("TR 3 train part %lu \n", trainDescriptorsShared[j * 8 + 3]);
-                //     printf("TR 4 train part %lu \n", trainDescriptorsShared[j * 8 + 4]);
-                //     printf("TR 5 train part %lu \n", trainDescriptorsShared[j * 8 + 5]);
-                //     printf("TR 6 train part %lu \n", trainDescriptorsShared[j * 8 + 6]);
-                //     printf("TR 7 train part %lu \n", trainDescriptorsShared[j * 8 + 7]);
-                // }
-                
                 distance =  __popcll(queryDescriptors[threadId * 8]      ^ trainDescriptorsShared[j * 8]);
                 distance += __popcll(queryDescriptors[threadId * 8 + 1 ] ^ trainDescriptorsShared[j * 8 + 1 ]);
                 distance += __popcll(queryDescriptors[threadId * 8 + 2 ] ^ trainDescriptorsShared[j * 8 + 2 ]);
@@ -280,13 +241,13 @@ int main()
     uint32_t* matchesNaive = new uint32_t[countOfQueryDescriptors];
     uint32_t* matchesSharedMem = new uint32_t[countOfQueryDescriptors];
     uint32_t* matchesSharedMem64Bit = new uint32_t[countOfQueryDescriptors];
-    uint32_t* matchesSharedMem64BitTranspose = new uint32_t[countOfQueryDescriptors];
+    uint32_t* matchesSharedMem64BitOptimized = new uint32_t[countOfQueryDescriptors];
 
     uint16_t* distancesCPU = new uint16_t[countOfQueryDescriptors];
     uint16_t* distancesNaive = new uint16_t[countOfQueryDescriptors];
     uint16_t* distancesSharedMem = new uint16_t[countOfQueryDescriptors];
     uint16_t* distancesSharedMem64Bit = new uint16_t[countOfQueryDescriptors];
-    uint16_t* distancesSharedMem64BitTranspose = new uint16_t[countOfQueryDescriptors];
+    uint16_t* distancesSharedMem64BitOptimized = new uint16_t[countOfQueryDescriptors];
 
     // Fill in descriptors
     srand(36);
@@ -398,7 +359,7 @@ int main()
     // Warm-up
     for(size_t i = 0; i < numberOfRuns; i++)
     {
-        BinaryMatcherWithSharedMem64BitTranspose<<<(countOfQueryDescriptors/BLOCK_SIZE) + 1, BLOCK_SIZE>>> (deviceQueryDescriptors, deviceTrainDescriptors, countOfQueryDescriptors, countOfTrainDescriptors, deviceMatches, deviceDistances);
+        BinaryMatcherWithSharedMem64BitOptimized<<<(countOfQueryDescriptors/BLOCK_SIZE) + 1, BLOCK_SIZE>>> (deviceQueryDescriptors, deviceTrainDescriptors, countOfQueryDescriptors, countOfTrainDescriptors, deviceMatches, deviceDistances);
         cudaDeviceSynchronize();
     }
 
@@ -406,7 +367,7 @@ int main()
 
     for(size_t i = 0; i < numberOfRuns; i++)
     {
-        BinaryMatcherWithSharedMem64BitTranspose<<<(countOfQueryDescriptors/BLOCK_SIZE) + 1, BLOCK_SIZE>>> (deviceQueryDescriptors, deviceTrainDescriptors, countOfQueryDescriptors, countOfTrainDescriptors, deviceMatches, deviceDistances);
+        BinaryMatcherWithSharedMem64BitOptimized<<<(countOfQueryDescriptors/BLOCK_SIZE) + 1, BLOCK_SIZE>>> (deviceQueryDescriptors, deviceTrainDescriptors, countOfQueryDescriptors, countOfTrainDescriptors, deviceMatches, deviceDistances);
         cudaDeviceSynchronize();
     }
 
@@ -417,8 +378,8 @@ int main()
 
     std::cout << "Time to run shared memory 64 Bit Transposition kernel : " << std::setprecision(10) << milliseconds / numberOfRuns << " ms" << std::endl;
 
-    cudaMemcpy(matchesSharedMem64BitTranspose, deviceMatches, countOfQueryDescriptors * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-    cudaMemcpy(distancesSharedMem64BitTranspose, deviceDistances, countOfQueryDescriptors * sizeof(uint16_t), cudaMemcpyDeviceToHost);
+    cudaMemcpy(matchesSharedMem64BitOptimized, deviceMatches, countOfQueryDescriptors * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    cudaMemcpy(distancesSharedMem64BitOptimized, deviceDistances, countOfQueryDescriptors * sizeof(uint16_t), cudaMemcpyDeviceToHost);
 
     // Run OpenCV based matcher
     cv::Ptr<cv::cuda::DescriptorMatcher> openCVGPUMatcher = cv::cuda::DescriptorMatcher::createBFMatcher(cv::NORM_HAMMING);
@@ -483,11 +444,11 @@ int main()
                         << " do not match!" << std::endl;
         }
 
-        if(matchesSharedMem64BitTranspose[i] != openCVCPUMatches[i].trainIdx)
+        if(matchesSharedMem64BitOptimized[i] != openCVCPUMatches[i].trainIdx)
         {
             std::cout   << "queryIdx = " << i
-                        << " matchesSharedMem64BitTranspose[i] := " << matchesSharedMem64BitTranspose[i] 
-                        << " distance := " << distancesSharedMem64BitTranspose[i] 
+                        << " matchesSharedMem64BitOptimized[i] := " << matchesSharedMem64BitOptimized[i] 
+                        << " distance := " << distancesSharedMem64BitOptimized[i] 
                         << " and openCVCPUMatches[i].trainIdx = " << openCVCPUMatches[i].trainIdx
                         << " distance = " << openCVCPUMatches[i].distance
                         << " do not match!" << std::endl;
