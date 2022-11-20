@@ -8,6 +8,8 @@ SET(CMAKE_CUDA_FLAGS="-lineinfo -arch=sm_61 --ptxas-options=-v --use_fast_math")
 
 find_package(CUDA)
 
+find_package(OpenCV REQUIRED PATHS C:/Users/ieloz/Desktop/Workspace/Libraries/OpenCV)
+
 file(GLOB source
     "source/*.cu"
     "source/*.cpp"

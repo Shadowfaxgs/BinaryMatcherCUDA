@@ -8,6 +8,9 @@
 #include <string>
 #include <vector>
 
+#include <opencv2/opencv.hpp>
+#include <opencv2/cudafeatures2d.hpp>
+
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
@@ -264,8 +267,8 @@ __global__ void BinaryMatcherWithSharedMem64BitTranspose(  const uint64_t* __res
 
 int main()
 {
-    const size_t countOfFrameDescriptors = BLOCK_SIZE * 50;
-    const size_t countOfDatabaseDescriptors = BLOCK_SIZE * 500;
+    const size_t countOfFrameDescriptors = BLOCK_SIZE * 5000;
+    const size_t countOfDatabaseDescriptors = BLOCK_SIZE * 5000;
     const size_t descriptorSizeUint64 = 8;
     const size_t sizeOfOneDescriptor = descriptorSizeUint64 * sizeof(uint64_t);
     const size_t numberOfRuns = 10;
@@ -417,87 +420,117 @@ int main()
     cudaMemcpy(matchesSharedMem64BitTranspose, deviceMatches, countOfFrameDescriptors * sizeof(uint32_t), cudaMemcpyDeviceToHost);
     cudaMemcpy(distancesSharedMem64BitTranspose, deviceDistances, countOfFrameDescriptors * sizeof(uint16_t), cudaMemcpyDeviceToHost);
 
-    // Compute ground-truth
-    for (size_t i = 0; i < countOfFrameDescriptors; i++)
+    // Run OpenCV based matcher
+    cv::Ptr<cv::cuda::DescriptorMatcher> openCVGPUMatcher = cv::cuda::DescriptorMatcher::createBFMatcher(cv::NORM_HAMMING);
+    cv::Ptr<cv::DescriptorMatcher> openCVMatcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::MatcherType::BRUTEFORCE_HAMMING);
+
+    cv::cuda::GpuMat frameGPUMat(countOfFrameDescriptors, sizeOfOneDescriptor, CV_8U, deviceFrameDescriptors);
+    cv::cuda::GpuMat databaseGPUMat(countOfDatabaseDescriptors, sizeOfOneDescriptor, CV_8U, deviceDatabaseDescriptors);
+    cv::Mat frameMat(countOfFrameDescriptors, sizeOfOneDescriptor, CV_8U, frameDescriptors);
+    cv::Mat databaseMat(countOfDatabaseDescriptors, sizeOfOneDescriptor, CV_8U, databaseDescriptors);
+    std::vector<cv::DMatch> openCVGPUMatches;
+    std::vector<cv::DMatch> openCVCPUMatches;
+
+    // Warm-up
+    for(size_t i = 0; i < numberOfRuns; i++)
     {
-        size_t min_distance = 513;
-        size_t match = 0;
-        uint64_t* frameDescriptor = &frameDescriptors[i * descriptorSizeUint64];
-        for (size_t j = 0; j < countOfDatabaseDescriptors; j++)
-        {
-            size_t distance = 0;
-            uint64_t* databaseDescriptor = &databaseDescriptors[j * descriptorSizeUint64];
-            for (size_t k = 0; k < descriptorSizeUint64; k++)
-            {
-                for (uint64_t val = frameDescriptor[k] ^ databaseDescriptor[k]; val > 0; ++distance)
-                {
-                    // We then count the bit set to 1 using the Peter Wegner way
-                    val = val & (val - 1); // Set to zero val's lowest-order 1
-                }
-
-                // distance += __builtin_popcountll(frameDescriptor[k] ^ databaseDescriptor[k]);
-
-                // printf("frameDescriptor[k] %lli \n", frameDescriptor[k]);
-                // printf("databaseDescriptor[k] %lli \n", databaseDescriptor[k]);
-                // printf("INSIDE distance %lli \n", distance);
-            }
-
-            if(distance < min_distance)
-            {
-                // printf("INSIDE min_distance %lli \n", min_distance);
-                // printf("INSIDE j %lli \n", j);
-                min_distance = distance;
-                match = j;
-            }
-        }
-
-        // printf("min_distance %lli \n", min_distance);
-        // printf("match %lli \n", match);
-
-        distancesCPU[i] = min_distance;
-        matchesCPU[i] = match;
+        openCVGPUMatcher->match(frameGPUMat, databaseGPUMat, openCVGPUMatches);
     }
+
+    std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+
+    for(size_t i = 0; i < numberOfRuns; i++)
+    {
+        openCVGPUMatcher->match(frameGPUMat, databaseGPUMat, openCVGPUMatches);
+    }
+
+    std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+    double sec = static_cast<double>(std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count()) * 1e-9 / static_cast<double>(numberOfRuns);
+	std::cout << "openCVMatcher ran in  "  << sec * 1e3 << " ms" << std::endl;
+
+    openCVMatcher->match(frameMat, databaseMat, openCVCPUMatches);
+
+    // // Compute ground-truth
+    // for (size_t i = 0; i < countOfFrameDescriptors; i++)
+    // {
+    //     size_t min_distance = 513;
+    //     size_t match = 0;
+    //     uint64_t* frameDescriptor = &frameDescriptors[i * descriptorSizeUint64];
+    //     for (size_t j = 0; j < countOfDatabaseDescriptors; j++)
+    //     {
+    //         size_t distance = 0;
+    //         uint64_t* databaseDescriptor = &databaseDescriptors[j * descriptorSizeUint64];
+    //         for (size_t k = 0; k < descriptorSizeUint64; k++)
+    //         {
+    //             for (uint64_t val = frameDescriptor[k] ^ databaseDescriptor[k]; val > 0; ++distance)
+    //             {
+    //                 // We then count the bit set to 1 using the Peter Wegner way
+    //                 val = val & (val - 1); // Set to zero val's lowest-order 1
+    //             }
+
+    //             // distance += __builtin_popcountll(frameDescriptor[k] ^ databaseDescriptor[k]);
+
+    //             // printf("frameDescriptor[k] %lli \n", frameDescriptor[k]);
+    //             // printf("databaseDescriptor[k] %lli \n", databaseDescriptor[k]);
+    //             // printf("INSIDE distance %lli \n", distance);
+    //         }
+
+    //         if(distance < min_distance)
+    //         {
+    //             // printf("INSIDE min_distance %lli \n", min_distance);
+    //             // printf("INSIDE j %lli \n", j);
+    //             min_distance = distance;
+    //             match = j;
+    //         }
+    //     }
+
+    //     // printf("min_distance %lli \n", min_distance);
+    //     // printf("match %lli \n", match);
+
+    //     distancesCPU[i] = min_distance;
+    //     matchesCPU[i] = match;
+    // }
 
     // Compare results with ground-truth
     for(int i = 0; i < countOfFrameDescriptors; i++)
     {
-        if(matchesNaive[i] != matchesCPU[i])
+        if(matchesNaive[i] != openCVCPUMatches[i].trainIdx)
         {
             std::cout   << "queryIdx = " << i
                         << " matchesNaive[i] := " << matchesNaive[i] 
                         << " distance := " << distancesNaive[i] 
-                        << " and openCVCPUMatches[i].trainIdx = " << matchesCPU[i]
-                        << " distance = " << distancesCPU[i]
+                        << " and openCVCPUMatches[i].trainIdx = " << openCVCPUMatches[i].trainIdx
+                        << " distance = " << openCVCPUMatches[i].distance
                         << " do not match!" << std::endl;
         }
         
-        if(matchesSharedMem[i] != matchesCPU[i])
+        if(matchesSharedMem[i] != openCVCPUMatches[i].trainIdx)
         {
             std::cout   << "queryIdx = " << i
                         << " matchesSharedMem[i] := " << matchesSharedMem[i] 
                         << " distance := " << distancesSharedMem[i] 
-                        << " and openCVCPUMatches[i].trainIdx = " << matchesCPU[i]
-                        << " distance = " << distancesCPU[i]
+                        << " and openCVCPUMatches[i].trainIdx = " << openCVCPUMatches[i].trainIdx
+                        << " distance = " << openCVCPUMatches[i].distance
                         << " do not match!" << std::endl;
         }
 
-        // if(matchesSharedMem64Bit[i] != matchesCPU[i])
+        // if(matchesSharedMem64Bit[i] != openCVCPUMatches[i].trainIdx)
         // {
         //     std::cout   << "queryIdx = " << i
         //                 << " matchesSharedMem64Bit[i] := " << matchesSharedMem64Bit[i] 
         //                 << " distance := " << distancesSharedMem64Bit[i] 
-        //                 << " and openCVCPUMatches[i].trainIdx = " << matchesCPU[i]
-        //                 << " distance = " << distancesCPU[i]
+        //                 << " and openCVCPUMatches[i].trainIdx = " << openCVCPUMatches[i].trainIdx
+                        // << " distance = " << openCVCPUMatches[i].distance
         //                 << " do not match!" << std::endl;
         // }
 
-        if(matchesSharedMem64BitTranspose[i] != matchesCPU[i])
+        if(matchesSharedMem64BitTranspose[i] != openCVCPUMatches[i].trainIdx)
         {
             std::cout   << "queryIdx = " << i
                         << " matchesSharedMem64BitTranspose[i] := " << matchesSharedMem64BitTranspose[i] 
                         << " distance := " << distancesSharedMem64BitTranspose[i] 
-                        << " and openCVCPUMatches[i].trainIdx = " << matchesCPU[i]
-                        << " distance = " << distancesCPU[i]
+                        << " and openCVCPUMatches[i].trainIdx = " << openCVCPUMatches[i].trainIdx
+                        << " distance = " << openCVCPUMatches[i].distance
                         << " do not match!" << std::endl;
         }
     }
