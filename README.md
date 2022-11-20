@@ -13,7 +13,11 @@ Results are compared with OpenCV CPU version and execution times are compared wi
 Here are the current benchmark results on Nvidia 3060Ti, with 160.000 query and train descriptors:
 
 Time to run naive kernel : 708.4364014 ms
+
 Time to run shared memory kernel : 551.4415283 ms
+
 Time to run shared memory 64 Bit kernel : 441.7418518 ms
+
 Time to run shared memory 64 Bit Transposition kernel : 373.2445984 ms
+
 openCVMatcher ran in  2480.66902 ms
