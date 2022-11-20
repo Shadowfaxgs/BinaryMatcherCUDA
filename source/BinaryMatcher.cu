@@ -455,5 +455,26 @@ int main()
         }
     }
 
+
+    cudaFree(deviceQueryDescriptors);
+    cudaFree(deviceTrainDescriptors);
+    cudaFree(deviceMatches);
+    cudaFree(deviceDistances);
+
+    delete queryDescriptors;
+    delete trainDescriptors;
+    
+    delete matchesCPU;
+    delete matchesNaive;
+    delete matchesSharedMem;
+    delete matchesSharedMem64Bit;
+    delete matchesSharedMem64BitOptimized;
+
+    delete distancesCPU;
+    delete distancesNaive;
+    delete distancesSharedMem;
+    delete distancesSharedMem64Bit;
+    delete distancesSharedMem64BitOptimized;
+    
     return 0;
 }
