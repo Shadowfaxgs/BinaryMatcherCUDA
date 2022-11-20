@@ -352,7 +352,7 @@ int main()
     cudaMemcpy(matchesSharedMem64Bit, deviceMatches, countOfQueryDescriptors * sizeof(uint32_t), cudaMemcpyDeviceToHost);
     cudaMemcpy(distancesSharedMem64Bit, deviceDistances, countOfQueryDescriptors * sizeof(uint16_t), cudaMemcpyDeviceToHost);
 
-    // Run the kernel with shared memory usage and 64-bit computation and transposition
+    // Run the kernel with shared memory usage and 64-bit computation and memory optimization
     cudaMemset(deviceMatches, 0, countOfQueryDescriptors * sizeof(uint32_t));
     cudaMemset(deviceDistances, 0, countOfQueryDescriptors * sizeof(uint16_t));
 
@@ -376,7 +376,7 @@ int main()
     milliseconds = 0;
     cudaEventElapsedTime(&milliseconds, start, stop);
 
-    std::cout << "Time to run shared memory 64 Bit Transposition kernel : " << std::setprecision(10) << milliseconds / numberOfRuns << " ms" << std::endl;
+    std::cout << "Time to run shared memory 64 Bit Optimized kernel : " << std::setprecision(10) << milliseconds / numberOfRuns << " ms" << std::endl;
 
     cudaMemcpy(matchesSharedMem64BitOptimized, deviceMatches, countOfQueryDescriptors * sizeof(uint32_t), cudaMemcpyDeviceToHost);
     cudaMemcpy(distancesSharedMem64BitOptimized, deviceDistances, countOfQueryDescriptors * sizeof(uint16_t), cudaMemcpyDeviceToHost);
